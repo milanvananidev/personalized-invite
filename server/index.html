@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Invite CSV Generator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f3f4f6;
+      padding: 30px;
+    }
+    .container {
+      background: white;
+      max-width: 900px;
+      margin: auto;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    input, select, button {
+      display: block;
+      margin-top: 12px;
+      padding: 10px;
+      width: 100%;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    canvas {
+      margin-top: 20px;
+      width: 100%;
+      border: 1px solid #ccc;
+    }
+    .label {
+      position: absolute;
+      background: #1a237e;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: move;
+      user-select: none;
+    }
+    .pdf-wrapper {
+      position: relative;
+      margin-top: 20px;
+    }
+    .page-nav {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+    .response {
+      margin-top: 20px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Invitation CSV Generator</h2>
+    <input type="file" id="pdfUpload" accept="application/pdf">
+    <input type="file" id="csvUpload" accept=".csv">
+
+    <label for="nameColumn">Select Name Column:</label>
+    <select id="nameColumn"></select>
+
+    <label for="typeColumn">Select Type Column:</label>
+    <select id="typeColumn"></select>
+
+    <div class="pdf-wrapper">
+      <canvas id="pdfCanvas"></canvas>
+      <div id="nameLabel" class="label">Name</div>
+      <div id="typeLabel" class="label">Type</div>
+    </div>
+
+    <div class="page-nav">
+      <button id="prevPage">⬅ Prev</button>
+      <span id="pageInfo">Page 1</span>
+      <button id="nextPage">Next ➡</button>
+    </div>
+
+    <button id="generateBtn">Generate Invitations</button>
+    <div class="response" id="response"></div>
+  </div>
+
+  <script>
+    let pdfDoc = null, currentPage = 1, totalPages = 1, uploadedPDF = null, csvData = null;
+
+    const canvas = document.getElementById('pdfCanvas');
+    const ctx = canvas.getContext('2d');
+    const nameLabel = document.getElementById('nameLabel');
+    const typeLabel = document.getElementById('typeLabel');
+    let nameDrag = false, typeDrag = false;
+    const labelPos = {
+      name: { x: 100, y: 100, page: 1 },
+      type: { x: 200, y: 140, page: 1 }
+    };
+
+    function renderPage(num) {
+      pdfDoc.getPage(num).then(page => {
+        const viewport = page.getViewport({ scale: 1.5 });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        nameLabel.style.left = labelPos.name.x + 'px';
+        nameLabel.style.top = labelPos.name.y + 'px';
+        nameLabel.style.display = (labelPos.name.page === num) ? 'block' : 'none';
+        typeLabel.style.left = labelPos.type.x + 'px';
+        typeLabel.style.top = labelPos.type.y + 'px';
+        typeLabel.style.display = (labelPos.type.page === num) ? 'block' : 'none';
+        page.render({ canvasContext: ctx, viewport });
+        document.getElementById('pageInfo').innerText = `Page ${num} of ${totalPages}`;
+      });
+    }
+
+    function enableDrag(label, key) {
+      label.addEventListener('mousedown', () => {
+        if (key === 'name') nameDrag = true;
+        if (key === 'type') typeDrag = true;
+      });
+      window.addEventListener('mouseup', () => { nameDrag = typeDrag = false; });
+      window.addEventListener('mousemove', (e) => {
+        if (!nameDrag && !typeDrag) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const flippedY = canvas.height - y;
+        if (key === 'name') {
+          nameLabel.style.left = x + 'px';
+          nameLabel.style.top = y + 'px';
+          labelPos.name = { x, y: flippedY, page: currentPage };
+        } else {
+          typeLabel.style.left = x + 'px';
+          typeLabel.style.top = y + 'px';
+          labelPos.type = { x, y: flippedY, page: currentPage };
+        }
+      });
+    }
+
+    document.getElementById('pdfUpload').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      uploadedPDF = file;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const typedarray = new Uint8Array(reader.result);
+        pdfjsLib.getDocument(typedarray).promise.then(pdf => {
+          pdfDoc = pdf;
+          totalPages = pdf.numPages;
+          currentPage = 1;
+          renderPage(currentPage);
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    document.getElementById('csvUpload').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      Papa.parse(file, {
+        header: true,
+        complete: results => {
+          csvData = results.data;
+          const headers = results.meta.fields;
+          const nameSelect = document.getElementById('nameColumn');
+          const typeSelect = document.getElementById('typeColumn');
+          nameSelect.innerHTML = '';
+          typeSelect.innerHTML = '';
+          headers.forEach(col => {
+            nameSelect.innerHTML += `<option value="${col}">${col}</option>`;
+            typeSelect.innerHTML += `<option value="${col}">${col}</option>`;
+          });
+        }
+      });
+    });
+
+    document.getElementById('prevPage').onclick = () => {
+      if (currentPage > 1) renderPage(--currentPage);
+    };
+    document.getElementById('nextPage').onclick = () => {
+      if (currentPage < totalPages) renderPage(++currentPage);
+    };
+
+    document.getElementById('generateBtn').addEventListener('click', async () => {
+      if (!uploadedPDF || !csvData) {
+        alert('Upload PDF and CSV first');
+        return;
+      }
+      const nameCol = document.getElementById('nameColumn').value;
+      const typeCol = document.getElementById('typeColumn').value;
+
+      const formData = new FormData();
+      formData.append('pdf', uploadedPDF);
+      formData.append('csv', new Blob([JSON.stringify(csvData)], { type: 'application/json' }));
+      formData.append('nameColumn', nameCol);
+      formData.append('typeColumn', typeCol);
+      formData.append('namePosition', JSON.stringify(labelPos.name));
+      formData.append('typePosition', JSON.stringify(labelPos.type));
+
+      const res = await fetch('http://localhost:3000/generate-csv', { method: 'POST', body: formData });
+      const result = await res.json();
+      document.getElementById('response').innerText = result.success
+        ? `✅ PDFs generated. Download: ${result.url}`
+        : '❌ Generation failed.';
+    });
+
+    enableDrag(nameLabel, 'name');
+    enableDrag(typeLabel, 'type');
+  </script>
+</body>
+</html>
