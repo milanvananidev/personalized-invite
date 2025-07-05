@@ -235,7 +235,7 @@ const Index = () => {
     const y = e.clientY - canvasRect.top - dragOffset.y;
 
     const position = {
-      x: Math.max(0, Math.max(x, canvasRect.width - 100)),
+      x: Math.max(0, Math.min(x, canvasRect.width - 100)),
       y: Math.max(0, Math.min(y, canvasRect.height - 20)),
       page: currentPage
     };
