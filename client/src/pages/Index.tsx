@@ -222,7 +222,7 @@ const Index = () => {
     formData.append('fontSettings', JSON.stringify(fontSettings));
 
     try {
-      const response = await fetch('http://localhost:3000/generate-csv', {
+      const response = await fetch('https://personalized-invite.onrender.com/generate-csv', {
         method: 'POST',
         body: formData
       });
