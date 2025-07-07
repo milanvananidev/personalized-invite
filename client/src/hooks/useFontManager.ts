@@ -1,5 +1,6 @@
 
 import { useState } from 'react';
+import { toast } from '@/hooks/use-toast';
 
 interface FontSettings {
   nameFont: string;
@@ -8,6 +9,8 @@ interface FontSettings {
   typeFontSize: number;
   nameColor: string;
   typeColor: string;
+  namePage: number;
+  typePage: number;
 }
 
 export const useFontManager = () => {
@@ -18,7 +21,9 @@ export const useFontManager = () => {
     nameFontSize: 16,
     typeFontSize: 14,
     nameColor: '#1e40af',
-    typeColor: '#be185d'
+    typeColor: '#be185d',
+    namePage: 1,
+    typePage: 1
   });
 
   const handleFontUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -34,9 +39,22 @@ export const useFontManager = () => {
       
       setUploadedFonts(prev => [...prev, fontName]);
       console.log(`Font ${fontName} loaded successfully`);
+      
+      // Show success toast
+      toast({
+        title: "Font uploaded successfully!",
+        description: `${fontName} is now available for use.`,
+      });
+      
     } catch (error) {
       console.error('Error loading font:', error);
-      alert('Failed to load font. Please try a different font file.');
+      
+      // Show error toast
+      toast({
+        title: "Font upload failed",
+        description: "Please try a different font file format (TTF, OTF, WOFF).",
+        variant: "destructive",
+      });
     }
   };
 

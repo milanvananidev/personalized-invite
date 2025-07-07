@@ -1,12 +1,12 @@
-
 import { useState, useRef, useEffect } from 'react';
 import { PdfUpload } from '../components/PdfUpload';
 import { CsvUpload } from '../components/CsvUpload';
 import { ColumnMapping } from '../components/ColumnMapping';
-import { FontSettingsComponent } from '../components/FontSettings';
+import { TextControls } from '../components/TextControls';
 import { PdfPreview } from '../components/PdfPreview';
+import { LabelOverview } from '../components/LabelOverview';
 import { usePdfLoader } from '../hooks/usePdfLoader';
-import { useFontManager } from '../hooks/useFontManager';
+import { useTextManager } from '../hooks/useTextManager';
 
 const Index = () => {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -23,16 +23,20 @@ const Index = () => {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
 
-  const [namePosition, setNamePosition] = useState({ x: 100, y: 100, page: 1 });
-  const [typePosition, setTypePosition] = useState({ x: 100, y: 150, page: 1 });
-  const [isDragging, setIsDragging] = useState<'name' | 'type' | null>(null);
+  const [isDragging, setIsDragging] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pdfJsLoaded = usePdfLoader();
-  const { uploadedFonts, fontSettings, setFontSettings, handleFontUpload } = useFontManager();
+  const { 
+    uploadedFonts, 
+    textElements, 
+    handleFontUpload, 
+    addTextElement, 
+    updateTextElement, 
+    deleteTextElement 
+  } = useTextManager();
 
-  // Effect to render PDF when both pdfDoc and canvas are available
   useEffect(() => {
     const canvasElement = canvasRef.current;
     const shouldRender = pdfDoc && pdfJsLoaded && !pdfLoading && canvasElement;
@@ -136,6 +140,11 @@ const Index = () => {
     setCurrentPage(newPage);
   };
 
+  const handleDirectPageChange = (pageNum: number) => {
+    if (!pdfDoc || pageNum < 1 || pageNum > totalPages) return;
+    setCurrentPage(pageNum);
+  };
+
   const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !file.name.endsWith('.csv')) return;
@@ -157,9 +166,9 @@ const Index = () => {
     setCsvData(data);
   };
 
-  const handleMouseDown = (e: React.MouseEvent, labelType: 'name' | 'type') => {
+  const handleMouseDown = (e: React.MouseEvent, elementId: string) => {
     e.preventDefault();
-    setIsDragging(labelType);
+    setIsDragging(elementId);
     const rect = e.currentTarget.getBoundingClientRect();
     setDragOffset({
       x: e.clientX - rect.left,
@@ -174,17 +183,10 @@ const Index = () => {
     const x = e.clientX - canvasRect.left - dragOffset.x;
     const y = e.clientY - canvasRect.top - dragOffset.y;
 
-    const position = {
-      x: Math.max(0, Math.min(x, canvasRect.width - 100)),
-      y: Math.max(0, Math.min(y, canvasRect.height - 20)),
-      page: currentPage
-    };
+    const newX = Math.max(0, Math.min(x, canvasRect.width - 100));
+    const newY = Math.max(0, Math.min(y, canvasRect.height - 20));
 
-    if (isDragging === 'name') {
-      setNamePosition(position);
-    } else {
-      setTypePosition(position);
-    }
+    updateTextElement(isDragging, { x: newX, y: newY });
   };
 
   const handleMouseUp = () => {
@@ -192,37 +194,28 @@ const Index = () => {
   };
 
   const handleGenerate = async () => {
-    if (!pdfFile || !csvFile || !selectedNameColumn || !selectedTypeColumn) {
-      alert('Please complete all required fields');
+    if (!pdfFile || !csvFile || textElements.length === 0) {
+      alert('Please upload files and add at least one text element');
       return;
     }
 
     const canvasHeight = canvas?.height ?? 0;
     const scale = 1.2;
 
-    const adjustedName = {
-      x: (namePosition.x / scale),
-      y: (canvasHeight - namePosition.y) / scale,
-      page: namePosition.page
-    };
-
-    const adjustedType = {
-      x: typePosition.x / scale,
-      y: (canvasHeight - typePosition.y) / scale,
-      page: typePosition.page
-    };
+    // Convert text elements for generation
+    const elementsForGeneration = textElements.map(element => ({
+      ...element,
+      x: element.x / scale,
+      y: (canvasHeight - element.y) / scale
+    }));
 
     const formData = new FormData();
     formData.append('pdf', pdfFile);
     formData.append('csv', csvFile);
-    formData.append('nameColumn', selectedNameColumn);
-    formData.append('typeColumn', selectedTypeColumn);
-    formData.append('namePosition', JSON.stringify(adjustedName));
-    formData.append('typePosition', JSON.stringify(adjustedType));
-    formData.append('fontSettings', JSON.stringify(fontSettings));
+    formData.append('textElements', JSON.stringify(elementsForGeneration));
 
     try {
-      const response = await fetch('https://personalized-invite.onrender.com/generate-csv', {
+      const response = await fetch('http://localhost:3000/generate-csv', {
         method: 'POST',
         body: formData
       });
@@ -245,7 +238,7 @@ const Index = () => {
     }
   };
 
-  const canGenerate = pdfFile && csvFile && selectedNameColumn && selectedTypeColumn;
+  const canGenerate = pdfFile && csvFile && textElements.length > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
@@ -256,7 +249,7 @@ const Index = () => {
             Personalized Invitation
           </h1>
           <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-            Upload your PDF template and CSV guest list to generate personalized Gujarati wedding invitations
+            Upload your PDF template and CSV guest list to generate personalized invitations with custom text placement
           </p>
         </div>
 
@@ -286,12 +279,25 @@ const Index = () => {
               onTypeColumnChange={setSelectedTypeColumn}
             />
 
-            <FontSettingsComponent
-              fontSettings={fontSettings}
+            <TextControls
               uploadedFonts={uploadedFonts}
-              onFontSettingsChange={setFontSettings}
+              currentPage={currentPage}
+              textElements={textElements}
               onFontUpload={handleFontUpload}
+              onAddText={addTextElement}
+              onUpdateText={updateTextElement}
+              onDeleteText={deleteTextElement}
             />
+
+            {/* Text Overview */}
+            {totalPages > 0 && (
+              <LabelOverview
+                textElements={textElements}
+                totalPages={totalPages}
+                currentPage={currentPage}
+                onPageChange={handleDirectPageChange}
+              />
+            )}
 
             {/* Generate Button */}
             <button
@@ -312,14 +318,9 @@ const Index = () => {
             pdfLoading={pdfLoading}
             currentPage={currentPage}
             totalPages={totalPages}
-            namePosition={namePosition}
-            typePosition={typePosition}
             isDragging={isDragging}
             canvas={canvas}
-            csvData={csvData}
-            selectedNameColumn={selectedNameColumn}
-            selectedTypeColumn={selectedTypeColumn}
-            fontSettings={fontSettings}
+            textElements={textElements}
             canvasRef={canvasRef}
             onPageChange={handlePageChange}
             onMouseDown={handleMouseDown}
@@ -334,19 +335,19 @@ const Index = () => {
           <div className="grid md:grid-cols-2 gap-4 text-sm text-gray-600">
             <div>
               <h4 className="font-medium text-gray-800 mb-2">1. Upload Files</h4>
-              <p>Upload your PDF template and CSV file with guest data. The CSV should have columns for names and types (e.g., "સજોડે", "કુટુંબ").</p>
+              <p>Upload your PDF template and CSV file with guest data. Upload custom fonts if needed for special text rendering.</p>
             </div>
             <div>
-              <h4 className="font-medium text-gray-800 mb-2">2. Configure Settings</h4>
-              <p>Select CSV columns, customize fonts, colors, and sizes. Upload custom fonts if needed for Gujarati text.</p>
+              <h4 className="font-medium text-gray-800 mb-2">2. Add Text Elements</h4>
+              <p>Click "Add Text" to create new text elements on any page. Customize their content, font, size, and color as needed.</p>
             </div>
             <div>
-              <h4 className="font-medium text-gray-800 mb-2">3. Position Labels</h4>
-              <p>Drag the name and type labels to where you want the text to appear on each invitation.</p>
+              <h4 className="font-medium text-gray-800 mb-2">3. Position Text</h4>
+              <p>Navigate through pages and drag text elements to position them exactly where you want them to appear on each page.</p>
             </div>
             <div>
               <h4 className="font-medium text-gray-800 mb-2">4. Generate</h4>
-              <p>Click "Generate All Invitations" to create personalized PDFs for each guest in your CSV file.</p>
+              <p>Click "Generate All Invitations" to create personalized PDFs with your custom text elements positioned on each page.</p>
             </div>
           </div>
         </div>

@@ -73,7 +73,7 @@ function drawGujaratiWithTightSpaces(page, text, xStart, y, font, size, customSp
   }
 }
 
-app.post('/generate-csv', upload.fields([{ name: 'pdf' }, { name: 'csv' }]), async (req, res) => {
+app.post('/generate-csv', upload.fields([{ name: 'pdf' }, { name: 'csv' }, { name: 'font' }]), async (req, res) => {
   try {
     const pdfFile = req.files['pdf'][0];
     const csvBuffer = req.files['csv'][0].buffer || fs.readFileSync(req.files['csv'][0].path);
@@ -108,7 +108,12 @@ app.post('/generate-csv', upload.fields([{ name: 'pdf' }, { name: 'csv' }]), asy
       const existingPdfBytes = fs.readFileSync(pdfFile.path);
       const pdfDoc = await PDFDocument.load(existingPdfBytes);
       pdfDoc.registerFontkit(fontkit);
-      const customFont = await pdfDoc.embedFont(fontBytes, { subset: true });
+
+      const fontBuffer = req.files?.['font']
+        ? req.files['font'][0].buffer || fs.readFileSync(req.files['font'][0].path)
+        : fs.readFileSync(FONT_PATH);
+        
+      const customFont = await pdfDoc.embedFont(fontBuffer, { subset: true });
 
       const namePage = pdfDoc.getPages()[namePosition.page - 1];
       const typePage = pdfDoc.getPages()[typePosition.page - 1];

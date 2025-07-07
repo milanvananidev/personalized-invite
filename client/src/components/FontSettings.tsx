@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface FontSettings {
   nameFont: string;
@@ -8,11 +9,14 @@ interface FontSettings {
   typeFontSize: number;
   nameColor: string;
   typeColor: string;
+  namePage: number;
+  typePage: number;
 }
 
 interface FontSettingsProps {
   fontSettings: FontSettings;
   uploadedFonts: string[];
+  totalPages: number;
   onFontSettingsChange: (settings: FontSettings) => void;
   onFontUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
@@ -20,6 +24,7 @@ interface FontSettingsProps {
 export const FontSettingsComponent: React.FC<FontSettingsProps> = ({
   fontSettings,
   uploadedFonts,
+  totalPages,
   onFontSettingsChange,
   onFontUpload
 }) => {
@@ -48,12 +53,53 @@ export const FontSettingsComponent: React.FC<FontSettingsProps> = ({
             <p className="text-sm text-gray-600">Upload TTF, OTF, WOFF files</p>
           </label>
         </div>
+        
+        {/* Show uploaded fonts */}
+        {uploadedFonts.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Uploaded Fonts:</h4>
+            <div className="space-y-2">
+              {uploadedFonts.map((font, index) => (
+                <div key={index} className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                  <span className="text-sm text-green-800 font-medium" style={{ fontFamily: font }}>
+                    {font}
+                  </span>
+                  <div className="flex items-center">
+                    <svg className="w-4 h-4 text-green-600 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-xs text-green-600">Loaded</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Name Settings */}
         <div className="space-y-4">
           <h3 className="font-medium text-gray-800">Name Settings</h3>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Page Assignment</label>
+            <Select
+              value={fontSettings.namePage.toString()}
+              onValueChange={(value) => onFontSettingsChange({ ...fontSettings, namePage: parseInt(value) })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select page" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: totalPages || 1 }, (_, i) => (
+                  <SelectItem key={i + 1} value={(i + 1).toString()}>
+                    Page {i + 1}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Font Family</label>
@@ -95,6 +141,25 @@ export const FontSettingsComponent: React.FC<FontSettingsProps> = ({
         {/* Type Settings */}
         <div className="space-y-4">
           <h3 className="font-medium text-gray-800">Type Settings</h3>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Page Assignment</label>
+            <Select
+              value={fontSettings.typePage.toString()}
+              onValueChange={(value) => onFontSettingsChange({ ...fontSettings, typePage: parseInt(value) })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select page" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: totalPages || 1 }, (_, i) => (
+                  <SelectItem key={i + 1} value={(i + 1).toString()}>
+                    Page {i + 1}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Font Family</label>
