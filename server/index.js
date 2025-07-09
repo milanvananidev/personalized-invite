@@ -78,16 +78,16 @@ app.post('/generate-csv', upload.fields([{ name: 'pdf' }, { name: 'csv' }, { nam
     const pdfFile = req.files['pdf'][0];
     const csvBuffer = req.files['csv'][0].buffer || fs.readFileSync(req.files['csv'][0].path);
 
-    const nameColumn = req.body.nameColumn;
-    const typeColumn = req.body.typeColumn;
-    const namePosition = JSON.parse(req.body.namePosition);
-    const typePosition = JSON.parse(req.body.typePosition);
-    const fontSettings = JSON.parse(req.body.fontSettings || '{}');
+    let nameColumn = req.body.nameColumn;
+    let typeColumn = req.body.typeColumn;
+    let namePosition = JSON.parse(req.body.namePosition);
+    let typePosition = JSON.parse(req.body.typePosition);
+    let fontSettings = JSON.parse(req.body.fontSettings || '{}');
 
-    const nameFontSize = fontSettings.nameFontSize || 18;
-    const typeFontSize = fontSettings.typeFontSize || 18;
-    const nameColor = hexToRgbColor(fontSettings.nameColor);
-    const typeColor = hexToRgbColor(fontSettings.typeColor);
+    let nameFontSize = fontSettings.nameFontSize || 18;
+    let typeFontSize = fontSettings.typeFontSize || 18;
+    let nameColor = hexToRgbColor(fontSettings.nameColor);
+    let typeColor = hexToRgbColor(fontSettings.typeColor);
 
     const parsedCSV = parse(csvBuffer.toString(), {
       columns: true,
@@ -100,9 +100,11 @@ app.post('/generate-csv', upload.fields([{ name: 'pdf' }, { name: 'csv' }, { nam
     const archive = archiver('zip');
     archive.pipe(output);
 
+    parsedCSV.slice(0, 1)
+
     for (const row of parsedCSV) {
-      const name = row[nameColumn]?.trim();
-      const type = row[typeColumn]?.trim();
+      let name = row[nameColumn]?.trim();
+      let type = row[typeColumn]?.trim();
       if (!name || !type) continue;
 
       const existingPdfBytes = fs.readFileSync(pdfFile.path);
@@ -112,13 +114,31 @@ app.post('/generate-csv', upload.fields([{ name: 'pdf' }, { name: 'csv' }, { nam
       const fontBuffer = req.files?.['font']
         ? req.files['font'][0].buffer || fs.readFileSync(req.files['font'][0].path)
         : fs.readFileSync(FONT_PATH);
-        
-      const customFont = await pdfDoc.embedFont(fontBuffer, { subset: true });
+
+      const customFont = await pdfDoc.embedFont(fontBytes, { subset: true });
 
       const namePage = pdfDoc.getPages()[namePosition.page - 1];
       const typePage = pdfDoc.getPages()[typePosition.page - 1];
 
       drawGujaratiWithTightSpaces(namePage, name, namePosition.x, namePosition.y, customFont, nameFontSize, undefined, nameColor);
+
+      if (type === '૧') {
+        type = '૧ વ્યક્તિ'
+        typeFontSize = 15
+        typePosition.x = 270
+      }
+
+      if (type === 'સર્વો') {
+        typePosition.x = 275 + 5
+        typeFontSize = 18
+      }
+
+      if (type === 'સજોડે') {
+        typePosition.x = 275
+        typeFontSize = 18
+      }
+
+
       drawGujaratiWithTightSpaces(typePage, type, typePosition.x, typePosition.y, customFont, typeFontSize, undefined, typeColor);
 
       const pdfBytes = await pdfDoc.save();
